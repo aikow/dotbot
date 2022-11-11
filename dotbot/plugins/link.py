@@ -1,7 +1,6 @@
 import glob
 import os
 import shutil
-import subprocess
 import sys
 
 import dotbot
@@ -26,13 +25,11 @@ class Link(dotbot.Plugin):
     def _process_links(self, links):
         success = True
         defaults = self._context.defaults().get("link", {})
+
         for destination, source in links.items():
             destination = os.path.expandvars(destination)
+
             relative = defaults.get("relative", False)
-            # support old "canonicalize-path" key for compatibility
-            canonical_path = defaults.get(
-                "canonicalize", defaults.get("canonicalize-path", True)
-            )
             force = defaults.get("force", False)
             relink = defaults.get("relink", False)
             create = defaults.get("create", False)
@@ -41,13 +38,11 @@ class Link(dotbot.Plugin):
             test = defaults.get("if", None)
             ignore_missing = defaults.get("ignore-missing", False)
             exclude_paths = defaults.get("exclude", [])
+
             if isinstance(source, dict):
                 # extended config
                 test = source.get("if", test)
                 relative = source.get("relative", relative)
-                canonical_path = source.get(
-                    "canonicalize", source.get("canonicalize-path", canonical_path)
-                )
                 force = source.get("force", force)
                 relink = source.get("relink", relink)
                 create = source.get("create", create)
@@ -57,10 +52,14 @@ class Link(dotbot.Plugin):
                 exclude_paths = source.get("exclude", exclude_paths)
                 path = self._default_source(destination, source.get("path"))
             else:
-                path = self._default_source(destination, source)
+                raise ValueError(
+                    "Could not parse link item, expected dict but found %s" % source
+                )
+
             if test is not None and not self._test_success(test):
                 self._log.lowinfo("Skipping %s" % destination)
                 continue
+
             path = os.path.expandvars(os.path.expanduser(path))
             if use_glob:
                 glob_results = self._create_glob_results(path, exclude_paths)
@@ -87,10 +86,10 @@ class Link(dotbot.Plugin):
                         success &= self._create(destination)
                     if force or relink:
                         success &= self._delete(
-                            path, destination, relative, canonical_path, force
+                            path, destination, relative, force
                         )
                     success &= self._link(
-                        path, destination, relative, canonical_path, ignore_missing
+                        path, destination, relative, ignore_missing
                     )
                 else:
                     self._log.lowinfo("Globs from '" + path + "': " + str(glob_results))
@@ -116,19 +115,18 @@ class Link(dotbot.Plugin):
                                 glob_full_item,
                                 glob_link_destination,
                                 relative,
-                                canonical_path,
                                 force,
                             )
                         success &= self._link(
                             glob_full_item,
                             glob_link_destination,
                             relative,
-                            canonical_path,
                             ignore_missing,
                         )
             else:
                 if create:
                     success &= self._create(destination)
+
                 if not ignore_missing and not self._exists(
                     os.path.join(self._context.base_directory(), path)
                 ):
@@ -141,23 +139,29 @@ class Link(dotbot.Plugin):
                         "Nonexistent source %s -> %s" % (destination, path)
                     )
                     continue
+
                 if force or relink:
                     success &= self._delete(
-                        path, destination, relative, canonical_path, force
+                        path, destination, relative, force
                     )
+
                 success &= self._link(
-                    path, destination, relative, canonical_path, ignore_missing
+                    path, destination, relative, ignore_missing
                 )
+
         if success:
             self._log.info("All links have been set up")
         else:
             self._log.error("Some links were not successfully set up")
+
         return success
 
     def _test_success(self, command):
+        """Run a bash command in a subshell as a test."""
         ret = dotbot.util.shell_command(command, cwd=self._context.base_directory())
         if ret != 0:
             self._log.debug("Test '%s' returned false" % command)
+
         return ret == 0
 
     def _default_source(self, destination, source):
@@ -174,13 +178,6 @@ class Link(dotbot.Plugin):
         """
         Wrap `glob.glob` in a python agnostic way, catching errors in usage.
         """
-        if sys.version_info < (3, 5) and "**" in path:
-            self._log.error(
-                'Link cannot handle recursive glob ("**") for Python < version 3.5: "%s"'
-                % path
-            )
-            return []
-        # call glob.glob; only python >= 3.5 supports recursive globs
         found = (
             glob.glob(path)
             if (sys.version_info < (3, 5))
@@ -240,10 +237,10 @@ class Link(dotbot.Plugin):
                 self._log.lowinfo("Creating directory %s" % parent)
         return success
 
-    def _delete(self, source, path, relative, canonical_path, force):
+    def _delete(self, source, path, relative, force):
         success = True
         source = os.path.join(
-            self._context.base_directory(canonical_path=canonical_path), source
+            self._context.base_directory(), source
         )
         fullpath = os.path.expanduser(path)
         if relative:
@@ -279,7 +276,7 @@ class Link(dotbot.Plugin):
         destination_dir = os.path.dirname(destination)
         return os.path.relpath(source, destination_dir)
 
-    def _link(self, source, link_name, relative, canonical_path, ignore_missing):
+    def _link(self, source, link_name, relative, ignore_missing):
         """
         Links link_name to source.
 
@@ -287,7 +284,7 @@ class Link(dotbot.Plugin):
         """
         success = False
         destination = os.path.expanduser(link_name)
-        base_directory = self._context.base_directory(canonical_path=canonical_path)
+        base_directory = self._context.base_directory()
         absolute_source = os.path.join(base_directory, source)
         if relative:
             source = self._relative_path(absolute_source, destination)

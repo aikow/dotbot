@@ -31,7 +31,7 @@ class Dispatcher(object):
     def dispatch(self, tasks):
         success = True
         for task in tasks:
-            for action in task:
+            for action, data in task.items():
                 if (
                     self._only is not None
                     and action not in self._only
@@ -40,15 +40,17 @@ class Dispatcher(object):
                 ) and action != "defaults":
                     self._log.info("Skipping action %s" % action)
                     continue
+
                 handled = False
                 if action == "defaults":
-                    self._context.set_defaults(task[action])  # replace, not update
+                    self._context.set_defaults(data)  # replace, not update
                     handled = True
                     # keep going, let other plugins handle this if they want
+
                 for plugin in self._plugins:
                     if plugin.can_handle(action):
                         try:
-                            local_success = plugin.handle(action, task[action])
+                            local_success = plugin.handle(action, data)
                             if not local_success and self._exit:
                                 # The action has failed exit
                                 self._log.error("Action %s failed" % action)

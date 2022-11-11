@@ -25,11 +25,13 @@ class Shell(dotbot.Plugin):
         success = True
         defaults = self._context.defaults().get("shell", {})
         options = self._get_option_overrides()
+
         for item in data:
             stdin = defaults.get("stdin", False)
             stdout = defaults.get("stdout", False)
             stderr = defaults.get("stderr", False)
             quiet = defaults.get("quiet", False)
+
             if isinstance(item, dict):
                 cmd = item["command"]
                 msg = item.get("description", None)
@@ -37,18 +39,19 @@ class Shell(dotbot.Plugin):
                 stdout = item.get("stdout", stdout)
                 stderr = item.get("stderr", stderr)
                 quiet = item.get("quiet", quiet)
-            elif isinstance(item, list):
-                cmd = item[0]
-                msg = item[1] if len(item) > 1 else None
-            else:
+            elif isinstance(item, str):
                 cmd = item
                 msg = None
+            else:
+                raise ValueError("Cannot parse data %s" % str(item))
+
             if msg is None:
                 self._log.lowinfo(cmd)
             elif quiet:
                 self._log.lowinfo("%s" % msg)
             else:
                 self._log.lowinfo("%s [%s]" % (msg, cmd))
+
             stdout = options.get("stdout", stdout)
             stderr = options.get("stderr", stderr)
             ret = dotbot.util.shell_command(
@@ -58,13 +61,16 @@ class Shell(dotbot.Plugin):
                 enable_stdout=stdout,
                 enable_stderr=stderr,
             )
+
             if ret != 0:
                 success = False
                 self._log.warning("Command [%s] failed" % cmd)
+
         if success:
             self._log.info("All commands have been executed")
         else:
             self._log.error("Some commands were not successfully executed")
+
         return success
 
     def _get_option_overrides(self):
