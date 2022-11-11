@@ -31,47 +31,49 @@ class Dispatcher(object):
     def dispatch(self, tasks):
         success = True
         for task in tasks:
-            for action, data in task.items():
-                if (
-                    self._only is not None
-                    and action not in self._only
-                    or self._skip is not None
-                    and action in self._skip
-                ) and action != "defaults":
-                    self._log.info("Skipping action %s" % action)
-                    continue
+            action = task["type"]
+            data = task["data"]
 
-                handled = False
-                if action == "defaults":
-                    self._context.set_defaults(data)  # replace, not update
-                    handled = True
-                    # keep going, let other plugins handle this if they want
+            if (
+                self._only is not None
+                and action not in self._only
+                or self._skip is not None
+                and action in self._skip
+            ) and action != "defaults":
+                self._log.info("Skipping action %s" % action)
+                continue
 
-                for plugin in self._plugins:
-                    if plugin.can_handle(action):
-                        try:
-                            local_success = plugin.handle(action, data)
-                            if not local_success and self._exit:
-                                # The action has failed exit
-                                self._log.error("Action %s failed" % action)
-                                return False
-                            success &= local_success
-                            handled = True
-                        except Exception as err:
-                            self._log.error(
-                                "An error was encountered while executing action %s"
-                                % action
-                            )
-                            self._log.debug(err)
-                            if self._exit:
-                                # There was an execption exit
-                                return False
-                if not handled:
-                    success = False
-                    self._log.error("Action %s not handled" % action)
-                    if self._exit:
-                        # Invalid action exit
-                        return False
+            handled = False
+            if action == "defaults":
+                self._context.set_defaults(data)  # replace, not update
+                handled = True
+                # keep going, let other plugins handle this if they want
+
+            for plugin in self._plugins:
+                if plugin.can_handle(action):
+                    try:
+                        local_success = plugin.handle(action, data)
+                        if not local_success and self._exit:
+                            # The action has failed exit
+                            self._log.error("Action %s failed" % action)
+                            return False
+                        success &= local_success
+                        handled = True
+                    except Exception as err:
+                        self._log.error(
+                            "An error was encountered while executing action %s"
+                            % action
+                        )
+                        self._log.debug(err)
+                        if self._exit:
+                            # There was an execption exit
+                            return False
+            if not handled:
+                success = False
+                self._log.error("Action %s not handled" % action)
+                if self._exit:
+                    # Invalid action exit
+                    return False
         return success
 
     def _load_plugins(self):
