@@ -31,7 +31,7 @@ class Dispatcher(object):
     def dispatch(self, tasks):
         success = True
         for task in tasks:
-            action = task["type"]
+            action = task["action"]
             data = task["data"]
 
             if (
