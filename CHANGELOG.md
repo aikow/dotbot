@@ -1,6 +1,9 @@
 Note: this changelog only lists feature additions, not bugfixes. For details on
 those, see the Git history.
 
+* v2.0
+    * Remove pyyaml dependency
+
 * v1.19
     * Add `mode:` option for `create`
     * Add `exclude:` option for `link`

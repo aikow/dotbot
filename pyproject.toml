@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dotbot"
+description = "A tool that bootstraps your dotfiles"
+urls = { source = "https://github.com/aikow/dotbot" }
+readme = "README.md"
+requires-python = ">=3.6"
+license = { text = "MIT" }
+keywords = ["dotfiles"]
+authors = [
+  { name = "Anish Athalye", email = "me@anishathalye.com" },
+  { name = "Aiko Wessels", email = "aiko.wessels@gmail.com" },
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["black", "isort", "flake8", "pytest"]
+
+[project.scripts]
+dotbot = "dotbot:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "dotbot.__version__" }
+
+[tool.black]
+target_version = ["py36"]
+line-length = 88
+
+[tool.isort]
+profile = "black"

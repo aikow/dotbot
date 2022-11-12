@@ -1,15 +1,17 @@
 import os
-import subprocess
 import platform
+import subprocess
 
 
-def shell_command(command, cwd=None, enable_stdin=False, enable_stdout=False, enable_stderr=False):
-    with open(os.devnull, 'w') as devnull_w, open(os.devnull, 'r') as devnull_r:
+def shell_command(
+    command, cwd=None, enable_stdin=False, enable_stdout=False, enable_stderr=False
+):
+    with open(os.devnull, "w") as devnull_w, open(os.devnull, "r") as devnull_r:
         stdin = None if enable_stdin else devnull_r
         stdout = None if enable_stdout else devnull_w
         stderr = None if enable_stderr else devnull_w
-        executable = os.environ.get('SHELL')
-        if platform.system() == 'Windows':
+        executable = os.environ.get("SHELL")
+        if platform.system() == "Windows":
             # We avoid setting the executable kwarg on Windows because it does
             # not have the desired effect when combined with shell=True. It
             # will result in the correct program being run (e.g. bash), but it
@@ -30,5 +32,5 @@ def shell_command(command, cwd=None, enable_stdin=False, enable_stdout=False, en
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
-            cwd=cwd
+            cwd=cwd,
         )
