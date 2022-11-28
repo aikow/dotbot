@@ -12,6 +12,9 @@ from .messenger import Level, Messenger
 from .util import module
 
 
+CONFIG_FILENAME = "dotbot.json"
+
+
 def add_options(parser):
     parser.add_argument(
         "-Q", "--super-quiet", action="store_true", help="suppress almost all output"
@@ -28,18 +31,26 @@ def add_options(parser):
         "-v: typical verbose\n"
         "-vv: also, set shell commands stderr/stdout to true",
     )
+
     parser.add_argument(
-        "-d",
+        "-b",
         "--base-directory",
         help="execute commands from within BASEDIR",
         metavar="BASEDIR",
     )
     parser.add_argument(
-        "-c",
+        "-f",
         "--config-file",
         help="run commands given in CONFIGFILE",
-        metavar="CONFIGFILE",
+        metavar="CONFIG",
     )
+    parser.add_argument(
+        "-d",
+        "--config-dir",
+        help="Run all configs that are in the config dir.",
+        metavar="CONFIGS",
+    )
+
     parser.add_argument(
         "-p",
         "--plugin",
@@ -62,16 +73,23 @@ def add_options(parser):
         metavar="PLUGIN_DIR",
         help="load all plugins in PLUGIN_DIR",
     )
+
     parser.add_argument(
-        "--only", nargs="+", help="only run specified directives", metavar="DIRECTIVE"
+        "-o",
+        "--only",
+        nargs="+",
+        help="only run specified directives",
+        metavar="DIRECTIVE",
     )
     parser.add_argument(
+        "-e",
         "--except",
         nargs="+",
         dest="skip",
         help="skip specified directives",
         metavar="DIRECTIVE",
     )
+
     parser.add_argument(
         "--force-color",
         dest="force_color",
@@ -81,9 +99,11 @@ def add_options(parser):
     parser.add_argument(
         "--no-color", dest="no_color", action="store_true", help="disable color output"
     )
+
     parser.add_argument(
         "--version", action="store_true", help="show program's version number and exit"
     )
+
     parser.add_argument(
         "-x",
         "--exit-on-failure",
@@ -104,6 +124,7 @@ def main():
         parser = ArgumentParser(formatter_class=RawTextHelpFormatter)
         add_options(parser)
         options = parser.parse_args()
+
         if options.version:
             try:
                 with open(os.devnull) as devnull:
@@ -117,6 +138,7 @@ def main():
                 hash_msg = ""
             print("Dotbot version %s%s" % (dotbot.__version__, hash_msg))
             exit(0)
+
         if options.super_quiet:
             log.set_level(Level.WARNING)
         if options.quiet:
@@ -134,49 +156,75 @@ def main():
         else:
             log.use_color(sys.stdout.isatty())
 
-        plugin_directories = list(options.plugin_dirs)
+        # Load builtin plugins
         if not options.disable_built_in_plugins:
             from .plugins import Clean, Create, Link, Shell
+
         plugin_paths = []
-        for directory in plugin_directories:
+
+        for directory in list(options.plugin_dirs):
             for plugin_path in glob.glob(os.path.join(directory, "*.py")):
                 plugin_paths.append(plugin_path)
+
         for plugin_path in options.plugins:
             plugin_paths.append(plugin_path)
+
         for plugin_path in plugin_paths:
             abspath = os.path.abspath(plugin_path)
             module.load(abspath)
-        if not options.config_file:
-            log.error("No configuration file specified")
+
+        configs = []
+        if options.config_file:
+            conf_file = os.path.abspath(options.config_file)
+            conf_dir = os.path.dirname(conf_file)
+            conf = os.path.basename(conf_dir)
+            configs.append((conf, conf_dir, conf_file))
+
+        if options.config_dir:
+            for conf in os.listdir(options.config_dir):
+                conf_dir = os.path.abspath(os.path.join(options.config_dir, conf))
+                conf_file = os.path.join(conf_dir, CONFIG_FILENAME)
+                if not os.path.isdir(conf_dir):
+                    log.lowinfo("Skipped config '{}': Not a directory".format(conf))
+                elif not os.path.isfile(conf_file):
+                    log.lowinfo(
+                        "Skipped config '{}': No configuration file found".format(conf)
+                    )
+                else:
+                    configs.append((conf, conf_dir, conf_file))
+
+        if not configs:
+            log.error("No configuration files specified")
             exit(1)
 
-        tasks = read_config(options.config_file)
-        if tasks is None:
-            log.warning("Configuration file is empty, no work to do")
-            tasks = []
+        for conf, conf_dir, conf_file in configs:
+            log.info("\nRunning config for '{}'".format(conf))
+            log.lowinfo("Base directory: '{}'".format(conf_dir))
+            log.lowinfo("Config file: '{}'".format(conf_file))
 
-        if not isinstance(tasks, list):
-            raise ReadingError("Configuration file must be a list of tasks")
+            tasks = read_config(conf_file)
+            if tasks is None:
+                log.warning("Configuration file is empty, no work to do")
+                tasks = []
 
-        if options.base_directory:
-            base_directory = os.path.abspath(options.base_directory)
-        else:
-            # default to directory of config file
-            base_directory = os.path.dirname(os.path.abspath(options.config_file))
+            if not isinstance(tasks, list):
+                raise ReadingError("Configuration file must be a list of tasks")
 
-        os.chdir(base_directory)
-        dispatcher = Dispatcher(
-            base_directory,
-            only=options.only,
-            skip=options.skip,
-            exit_on_failure=options.exit_on_failure,
-            options=options,
-        )
-        success = dispatcher.dispatch(tasks)
-        if success:
-            log.info("\n==> All tasks executed successfully")
-        else:
-            raise DispatchError("\n==> Some tasks were not executed successfully")
+            os.chdir(conf_dir)
+            dispatcher = Dispatcher(
+                conf_dir,
+                only=options.only,
+                skip=options.skip,
+                exit_on_failure=options.exit_on_failure,
+                options=options,
+            )
+
+            success = dispatcher.dispatch(tasks)
+            if success:
+                log.info("==> All tasks executed successfully")
+            else:
+                raise DispatchError("\n==> Some tasks were not executed successfully")
+
     except (ReadingError, DispatchError) as e:
         log.error("%s" % e)
         exit(1)
