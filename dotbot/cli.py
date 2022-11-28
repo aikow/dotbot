@@ -176,7 +176,7 @@ def main():
         configs = []
         if options.config_file:
             conf_file = os.path.abspath(options.config_file)
-            conf_dir = os.path.dirname(conf_file)
+            conf_dir = options.base_directory or os.path.dirname(conf_file)
             conf = os.path.basename(conf_dir)
             configs.append((conf, conf_dir, conf_file))
 
